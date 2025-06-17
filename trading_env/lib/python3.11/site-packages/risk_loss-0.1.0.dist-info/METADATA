@@ -1,0 +1,84 @@
+Metadata-Version: 2.4
+Name: risk-loss
+Version: 0.1.0
+Summary: Scientific trading risk & loss analysis system
+Author-email: Alex Just Rodriguez <alexjustdata@gmail.com>
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: pandas
+Requires-Dist: openpyxl
+Requires-Dist: sqlalchemy
+Requires-Dist: typer
+Requires-Dist: jupyter
+Requires-Dist: pyarrow
+Requires-Dist: matplotlib
+
+# Risk-Loss: Scientific Trading Risk Analysis
+
+**Risk-Loss** is a modular, research-grade framework for processing and analyzing real trading activity. It supports structured ingestion of execution logs, trade integrity checks, and generation of risk metrics under controlled assumptions.
+
+## Project Layout
+
+```
+./
+├── pyproject.toml
+├── README.md
+├── notebooks/
+├── input/                  # Drop .xlsx files here
+├── output/                 # CSVs, plots, reports
+├── src/
+│   └── core/
+│       ├── pipeline.py     # Load & parse new trades
+│       ├── qa.py           # Integrity validation
+│       ├── summary.py      # Daily/global risk metrics
+│       ├── capital.py      # Capital acquisition logic
+│       └── cli.py          # Command-line interface
+└── tests/
+```
+
+## Installation (editable mode)
+
+```bash
+cd ./
+pip install -e .
+```
+
+## Command-Line Usage
+
+```bash
+python src/core/cli.py load --merge --capital 15000
+```
+
+Arguments:
+
+* `--merge`: merge fragmented trades
+* `--capital`: initial capital (optional; will prompt if missing)
+
+## Processing Pipeline
+
+* Loads new `.xlsx` files from `/input`
+* Applies `check_integrity()` to validate structure
+* (Optional) Merges split trades
+* Computes cumulative equity using initial capital
+* Prints:
+
+  * Total trades
+  * Win-rate
+  * Profit Factor
+  * Max Drawdown
+  * Total PnL
+  * Final Equity
+
+## Development Goals
+
+* Add persistent state tracking via SQLite
+* Extend CLI with `summary`, `check` subcommands
+* Integrate Streamlit for web-based exploration
+* Publish as Python package (`risk-loss`)
+
+---
+
+Author: Alex Just Rodríguez
+Contact: [alexjustdata@gmail.com](mailto:alexjustdata@gmail.com)
+
+

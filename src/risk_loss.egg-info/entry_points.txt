@@ -1,0 +1,2 @@
+[console_scripts]
+risk-loss = core.cli:app

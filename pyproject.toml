@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "risk-loss"
+version = "0.1.0"
+description = "Scientific trading risk & loss analysis system"
+authors = [
+  { name = "Alex Just Rodriguez", email = "alexjustdata@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.9"
+
+dependencies = [
+  "pandas",
+  "openpyxl",
+  "sqlalchemy",
+  "typer",
+  "jupyter",
+  "pyarrow",
+  "matplotlib"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+risk-loss = "core.cli:app"
+
