@@ -40,7 +40,8 @@ def win_streak_prob(p, n, L): return loss_streak_prob(1 - p, n, L)
 
 def prob_win_condicional(p_base, capital_actual, capital_inicial, bayes=False, return_ci=False):
     if bayes:
-        n_total = 50
+        factor = capital_actual / capital_inicial
+        n_total = max(5, int(50 * factor))
         wins = round(p_base * n_total)
         alpha_post = 1 + wins
         beta_post = 1 + (n_total - wins)
@@ -55,10 +56,10 @@ def prob_win_condicional(p_base, capital_actual, capital_inicial, bayes=False, r
         ajuste = (capital_actual / capital_inicial - 1) * 0.1
         final = min(max(p_base + ajuste, 0), 1)
         if return_ci:
-            return final, None, None
+            return final, '-', '-'
         return final
 
-def tabla_perdidas_dinamica(cap0, pct, p_base, r, L=5, filas=10, use_bayes=False):
+def tabla_perdidas_dinamica(cap0, pct, p_base, r, L=5, filas=10, use_bayes=True):
     rows = []; cap = cap0
     for i in range(1, filas + 1):
         riesgo = cap * pct
@@ -67,9 +68,11 @@ def tabla_perdidas_dinamica(cap0, pct, p_base, r, L=5, filas=10, use_bayes=False
         p_rn = loss_streak_prob(p_base, filas - i + 1, L)
         rows.append( (
             i, round(cap, 2), round(riesgo, 2),
-            f"{p_cond:.2%}", f"{1-p_cond:.2%}", f"{1-p_rn:.2%}", f"{p_rn:.2%}",
-            f"{ci_lo:.2%}" if ci_lo is not None else '',
-            f"{ci_hi:.2%}" if ci_hi is not None else ''
+            f"{p_cond:.2%}" if isinstance(p_cond, float) else p_cond,
+            f"{1-p_cond:.2%}" if isinstance(p_cond, float) else '-',
+            f"{1-p_rn:.2%}", f"{p_rn:.2%}",
+            f"{ci_lo:.2%}" if isinstance(ci_lo, float) else '-',
+            f"{ci_hi:.2%}" if isinstance(ci_hi, float) else '-'
         ) )
     return pd.DataFrame(rows, columns=[
         "Trade #", "Capital tras pérdida", "Riesgo $",
@@ -77,6 +80,37 @@ def tabla_perdidas_dinamica(cap0, pct, p_base, r, L=5, filas=10, use_bayes=False
         "Prob. win racha", "Prob. loss racha",
         "IC 95% inferior", "IC 95% superior"
     ])
+
+# --- NUEVO BLOQUE (al principio, junto a otras utils) -----------------
+def matriz_transicion(result_series):
+    """Devuelve matriz 2x2 Win/Loss -> Win/Loss normalizada."""
+    # result_series: serie con valores 'win' / 'loss'
+    next_res = result_series.shift(-1).dropna()
+    curr_res = result_series.iloc[:-1]
+    counts = pd.crosstab(curr_res, next_res)
+    # Garantiza que existan todas las claves
+    for lbl in ['win', 'loss']:
+        if lbl not in counts.index:  counts.loc[lbl]  = 0
+        if lbl not in counts.columns: counts[lbl] = 0
+    counts = counts.sort_index().sort_index(axis=1)
+    return counts.div(counts.sum(axis=1), axis=0)      # normalizado
+
+def streak_edge(trans_mat, L=5, n=25):
+    """Prob. ≥L wins menos prob. ≥L losses en n trades."""
+    p_win  = trans_mat.loc['win', 'win']
+    p_loss = trans_mat.loc['loss', 'loss']
+    # Usa la función de racha existente:
+    p_w   = win_streak_prob(p_win,  n, L)
+    p_l   = loss_streak_prob(1-p_win, n, L)  # Nota: complementamos p para pérdidas
+    return p_w - p_l
+
+def kelly_markov(p, r, trans_mat):
+    k_puro = calcular_kelly(p, r)
+    # Probabilidad de permanecer en estado pérdida
+    phi = trans_mat.loc['loss', 'loss']           # sticky losses
+    factor = 1 - phi                              # cuanto más “pegajosas” las pérdidas, menor Kelly
+    return k_puro * factor
+
 
 # === NUEVO: Visualización P heurística vs bayesiana ===
 def grafico_p_vs_capital(cap0, pct, p_base, filas=10):
@@ -98,20 +132,28 @@ def grafico_p_vs_capital(cap0, pct, p_base, filas=10):
     plt.tight_layout()
     plt.show()
 
+# === HEATMAP DE PROBABILIDADES ===
+def gen_streak_table(trades=50, max_streak=11, tipo="neg"):
+    rows = []
+    for w in range(5, 100, 5):
+        row = {'Win %': w}
+        for L in range(2, max_streak + 1):
+            p = (loss_streak_prob if tipo == "neg" else win_streak_prob)(w / 100, trades, L)
+            row[f'≥{L}'] = f"{p*100:.1f}%"
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 def heatmap_streaks(trades, max_streak):
-    data = np.zeros((max_streak, trades))
-    for L in range(1, max_streak + 1):
-        for n in range(1, trades + 1):
-            data[L - 1, n - 1] = loss_streak_prob(0.5, n, L)
-    plt.figure(figsize=(8, 4))
-    sns.heatmap(data, cmap="coolwarm", xticklabels=10, yticklabels=1,
-                cbar_kws={'label': 'Prob. de racha de pérdidas'})
-    plt.xlabel("Nº de trades"); plt.ylabel("Racha ≥")
-    plt.title("Mapa de calor: probabilidad de racha de pérdidas")
-    plt.tight_layout()
-    plt.show()
-
+    cmap = 'RdYlGn'
+    for t, label in [("neg", "pérdidas"), ("pos", "ganancias")]:
+        df = gen_streak_table(trades, max_streak, t)
+        num = df.set_index("Win %").apply(lambda c: c.str.rstrip('%').astype(float))
+        plt.figure(figsize=(14, 6))
+        sns.heatmap(num, cmap=cmap if t=="pos" else cmap+"_r",
+                    annot=df.set_index("Win %"), fmt='', cbar=False, linewidths=0.4)
+        plt.title(f"Probabilidad de ≥X {label} consecutivas en {trades} trades")
+        plt.yticks(rotation=0); plt.xticks(rotation=45, ha='right')
+        plt.tight_layout(); plt.show()
 
 # === WIDGETS ===
 P_sl      = FloatSlider(value=0.528, min=0, max=1,   step=0.001, description='Win %')
@@ -123,7 +165,7 @@ log_box   = Checkbox   (value=False, description='Log scale')
 mode_dd   = Dropdown   (options=['Determinista','Estocástica'], value='Determinista', description='Modo')
 n_tr_sl   = IntSlider  (value=25,    min=10,  max=200,            description='# Trades')
 r_cha_sl  = IntSlider  (value=5,     min=2,   max=20,             description='Racha ≥')
-bayes_toggle = Checkbox(value=False, description='Usar ajuste bayesiano')
+bayes_toggle = Checkbox(value=True, description='Usar ajuste bayesiano')
 
 sliders_box = VBox([P_sl, R_sl, k_frac_sl, cap_sl, dd_sl, log_box, mode_dd, n_tr_sl, r_cha_sl, bayes_toggle])
 
@@ -184,7 +226,7 @@ heatmap_output = interactive_output(
 
 
 def mostrar_interfaz():
-    display(sliders_box, simulador_output, heatmap_output, p_chart_output)
+    display(sliders_box, heatmap_output, simulador_output, p_chart_output)
 
 
 __all__ = [
@@ -195,4 +237,5 @@ __all__ = [
 
 if __name__ == "__main__" or "get_ipython" in globals():
     mostrar_interfaz()
+
 
