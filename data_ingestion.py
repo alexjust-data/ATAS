@@ -281,8 +281,8 @@ def explain_fragmented_trade(hist_df: pd.DataFrame, full_df: pd.DataFrame, trade
                      f"({frag['PnL_net']:.2f}$)")
     return steps
 
-def process_new_files(reprocess_existing: bool = True, merge_fragments: bool = True) -> pd.DataFrame:
-    accumulated = pd.DataFrame() if reprocess_existing else load_accumulated_data()
+def process_new_files(reprocess_existing: bool = False, merge_fragments: bool = True) -> pd.DataFrame:
+    accumulated = load_accumulated_data() if HIST_PATH.exists() else pd.DataFrame()
     all_files = sorted(INPUT_DIR.glob("*.xlsx"))
     new_trades = []
     for file in all_files:
