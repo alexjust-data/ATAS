@@ -176,8 +176,8 @@ def heatmap_streaks(trades, max_streak):
 # 7. INTERFAZ (sliders + callbacks)
 # =========================================================================
 def extraer_stats(df):
-    win_rate = (df['PnL_net'] > 0).mean()  # win-rate sobre total
-    profit_factor = df.loc[df['PnL_net'] > 0, 'PnL_net'].sum() / max(1e-6, df.loc[df['PnL_net'] < 0, 'PnL_net'].abs().sum())
+    win_rate = (df['pnl_net'] > 0).mean()  # win-rate sobre total
+    profit_factor = df.loc[df['pnl_net'] > 0, 'pnl_net'].sum() / max(1e-6, df.loc[df['pnl_net'] < 0, 'pnl_net'].abs().sum())
     equity_final = df['equity'].iloc[-1] if 'equity' in df.columns else 645
     return win_rate, profit_factor, equity_final
 
@@ -203,7 +203,7 @@ markov_toggle = Checkbox(value=True, description='Penalización Markov')
 def grafico_p_vs_capital(cap0, pct, p_base, filas=10):
     try:
         from core.global_state import df
-        results = np.where(df['PnL_net'] > 0, 'win', 'loss')
+        results = np.where(df['pnl_net'] > 0, 'win', 'loss')
     except:
         results = ['win' if np.random.rand() < p_base else 'loss' for _ in range(filas)]
 
@@ -261,9 +261,9 @@ def simulador_kelly(P, R, kelly_fraccion, capital_inicial,
     try:
         from core.global_state import df
         if 'result' not in df.columns:
-            df['result'] = np.where(df['PnL_net'] > 0, 'win', 'loss')
+            df['result'] = np.where(df['pnl_net'] > 0, 'win', 'loss')
         trans_mat = matriz_transicion(df['result'])
-        wins0 = (df['PnL_net'] > 0).sum(); losses0 = len(df) - wins0
+        wins0 = (df['pnl_net'] > 0).sum(); losses0 = len(df) - wins0
     except Exception:
         trans_mat = matriz_transicion(pd.Series(['win' if np.random.rand() < P else 'loss' for _ in range(n_trades_estocastico)]))
         wins0 = losses0 = 0
